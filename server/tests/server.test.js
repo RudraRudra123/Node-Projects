@@ -106,7 +106,7 @@ it('Should return 404 for non-object ids', (done) => {
             .expect(404)
             .end(done);
     });
-    it('Should return 404 if todo not found', (done) => {
+it('Should return 404 if todo not found', (done) => {
         let hexId = '123abcd'; 
         request(app)
             .get(`/todos/${hexId.toString('hex')}`)
