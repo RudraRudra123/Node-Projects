@@ -1,12 +1,14 @@
 var express = require('express'); 
 var bodyParser = require('body-parser');
-
+var {ObjectId} = require('mongodb');
 var {mongoose} = require('./db/mongoose');
 var {Todo} = require('./models/Todo');
 var {User} = require('./models/User');
 
 var app = express();
+const port = process.env.PORT || 3000 ; 
 app.use(bodyParser.json());
+//--------------------------------------------------
 app.post('/todos', (req, res) => {
     console.log(req.body); 
     var todo = new Todo({
@@ -21,8 +23,36 @@ app.post('/todos', (req, res) => {
 
 });
 //--------------------------------------------------
-app.listen(3000, () => {
-   // console.log('Todo App is running on port 3000');
+//GET /todo (getall)
+app.get('/todos', (req, res) => {
+    Todo.find().then((todos) => {
+        res.send({todos});
+    }, (e) => {
+        res.status(400).send(e);
+    })
+});
+
+//GET /todo/123456
+app.get('/todos/:id', (req, res) => {
+
+    let id = req.params.id; 
+  
+    if (!ObjectId.isValid(id)) {   //Object id is mongo db method
+        return res.status(404).send();
+    }
+    console.log('You have hit route /todos/id');
+    Todo.findById(id).then((todo) =>{
+        if(!todo) {
+            return res.status(404).send(); 
+        }
+        return res.send({todo}); 
+    }).catch((e) => {
+        return res.status(400).send();
+    });
+})
+//--------------------------------------------------
+app.listen(port, () => {
+   console.log(`Todo App is running on port ${port}`);
     
 });
 

@@ -4,9 +4,13 @@
   "description": "todo App on Node with Mongo DB",
   "main": "index.js",
   "scripts": {
+    "start": "node server/server.js",
    "test": "mocha */**/tests/server.test.js",
    "test-watch" : "nodemon --exec \"npm test\""
 
+  },
+  "engines": {
+    "node": "6.11.2"
   },
   "author": "",
   "license": "ISC",
