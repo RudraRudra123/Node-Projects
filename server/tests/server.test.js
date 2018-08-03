@@ -3,7 +3,7 @@ const request = require('supertest') ;
 const {ObjectId} = require('mongodb');
 
 const {app} = require('./../server');
-const {Todo} = require('./../models/Todo');
+const {Todo} = require('./../models/todo');
 var bodyParser = require('body-parser');
 //for GET operation create a collection todos 
 const todos = [{
@@ -32,7 +32,6 @@ describe('POST /todos', () => {
         .expect((res) => {
             console.log('you have hit res obj verification code'); 
             expect(res.body.text).toBe(text);
-            //done();
         })
         .end((err, res) => {
             if (err) {
@@ -112,5 +111,43 @@ it('Should return 404 if todo not found', (done) => {
             .get(`/todos/${hexId.toString('hex')}`)
             .expect(404)
             .end(done);
+    });
+});
+
+    describe('DELETE /todo/:id', () => {
+        it('Should remove a todo', (done) => {
+            let hexId = todos[0]._id.toHexString(); 
+            //console.log(todos[0]._id);
+            //console.log(`/todo/${todos[0]._id.toHexString()}`);
+            request(app)
+                .delete(`/todos/${hexId}`)
+                .expect(200)
+                .expect((res) => {
+                    expect(res.body.todo._id).toBe(hexId);
+                })
+                .end((err, res) => {
+                    if (err) {
+                        return done(err);
+                    };
+                    //query database using findById and it should fail as it is deleted 
+                    Todo.findById(hexId).then((todo) => {
+                        expect(todo).toBeFalsy(); 
+                        done();
+                }).catch((e) => done(e));          
+            });
+    });
+    it('Should return 404 if todo not found', (done) => {
+        let hexId = new ObjectId().toHexString();
+        request(app)
+        .delete(`/todos/${hexId}`)
+        .expect(404)
+        .end(done);
+    });
+    it('Should return 404 if object id is invalid', (done) => {
+        let hexId = 'abc890';
+        request(app)
+        .delete(`/todos/${hexId.toString('hex')}`)
+        .expect(404)
+        .end(done);
     });
 });
