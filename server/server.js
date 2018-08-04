@@ -1,9 +1,11 @@
 require('./config/config');
 
-var express = require('express'); 
-var bodyParser = require('body-parser');
-var {ObjectId} = require('mongodb');
-var {mongoose} = require('./db/mongoose');
+const express = require('express'); 
+const bodyParser = require('body-parser');
+const {ObjectId} = require('mongodb');
+const {mongoose} = require('./db/mongoose');
+const _ = require('lodash');
+
 var {Todo} = require('./models/todo');
 var {User} = require('./models/user');
 
@@ -12,7 +14,7 @@ const port = process.env.PORT ;
 
 app.use(bodyParser.json());
 //--------------------------------------------------
-//POST todo
+//POST todos
 app.post('/todos', (req, res) => {
     console.log(req.body); 
     var todo = new Todo({
@@ -27,7 +29,7 @@ app.post('/todos', (req, res) => {
 
 });
 //--------------------------------------------------
-//GET /todo (getall)
+//GET /todo (get-all)
 app.get('/todos', (req, res) => {
     Todo.find().then((todos) => {
         res.send({todos});
@@ -36,12 +38,12 @@ app.get('/todos', (req, res) => {
     })
 });
 //--------------------------------------------------
-//GET /todo/123456
+//GET /todos/123456
 app.get('/todos/:id', (req, res) => {
 
     let id = req.params.id; 
-  
-    if (!ObjectId.isValid(id)) {   //Object id is mongo db method
+//Object id is mongo db method
+    if (!ObjectId.isValid(id)) {  
         return res.status(404).send();
     }
     console.log('You have hit route /todos/id');
@@ -55,7 +57,7 @@ app.get('/todos/:id', (req, res) => {
     });
 });
 //--------------------------------------------------
-//DELETE /todo/id
+//DELETE /todos/id
 app.delete('/todos/:id',(req,res) => {
     let id = req.params.id;
 
@@ -72,6 +74,34 @@ app.delete('/todos/:id',(req,res) => {
     }).catch((e) =>{
         res.status(400).send();
     });
+});
+//--------------------------------------------------
+//PATCH /todos/id
+app.patch('/todos/:id', (req, res) => {
+    let id = req.params.id ;
+    //lodash- picks text and completed properties from the body
+    let body = _.pick(req.body, ['text', 'completed']); 
+    if(!ObjectId.isValid(id)) {
+        return res.status(404).send(); 
+    }
+    console.log(body);
+    if(_.isBoolean(body.completed) && body.completed) {
+        body.completedAt = new Date().getTime();
+    } else {
+        body.completed = false;
+        body.completedAt = null;
+    };
+
+    Todo.findByIdAndUpdate(id, { $set: body }, { $new: false }) //return updated document
+    .then((todo) =>{
+        if(!todo) {
+            return res.status(404).send();
+        }
+        res.send({todo});
+     })
+    .catch((e) => {
+        res.status(400).send();
+    })
 });
 //--------------------------------------------------
 app.listen(port, () => {
