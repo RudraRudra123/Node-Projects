@@ -4,9 +4,11 @@ const {ObjectId} = require('mongodb');
 
 const {app} = require('./../server');
 const {Todo} = require('./../models/todo');
+const { User } = require('./../models/user')
 var bodyParser = require('body-parser');
+const {todos, populateTodos, users, populateUsers} = require('./seed/seed');
 //for GET operation create a collection todos 
-const todos = [{
+/* const todos = [{
     _id: new ObjectId(),
     text: 'Todo note for GET request 1',
     completed: false,
@@ -16,20 +18,18 @@ const todos = [{
     text: 'Todo note for GET request 2',
     completed: true,
     completedAt: 333
-}];
+}]; */
+beforeEach(populateUsers);
+beforeEach(populateTodos);
 
 //Before each POST 
-beforeEach((done) => {
-    console.log('Remove collection before reach run..'); 
-    Todo.remove({}).then(() => {            //remove old records
-        return Todo.insertMany(todos) ;    // insert two records from above collection 
-    }).then(() => done());
-});
+
+
 describe('POST /todos', () => {
     it('should create new todo--', (done) => {
-        var text = 'Test todo text';
+        let text = 'Test todo text';
 
-        request(app)
+        request(app)    
         .post('/todos')
         .send({text})
         .expect(200)
@@ -230,5 +230,152 @@ describe('PATCH /todos/:id', (done) => {
             .expect(404)
             .end(done);
     });
+});
 
-})
+describe('GET /users/me', () => {
+    it('should return user if authenticated', (done) => {
+
+        request(app)
+        .get('/users/me')
+        .set('x-auth', users[1].tokens[0].token)
+        .expect(200)
+        .expect((res) => {
+            expect(res.body._id).toBe(users[1]._id.toHexString());
+            expect(res.body.email).toBe(users[1].email);
+        })
+        .end(done);
+    });
+
+    it('should return 401 if not authenticated', (done) =>{
+        request(app)
+        .get('/users/me')
+        .expect(401)
+        .expect((res) => {
+            expect(res.body).toEqual({});
+        })
+        .end(done);
+    });
+});
+
+describe('POST /users', () => {
+   it('should create a new user', (done) => { 
+        const email ='heaven@gmail.com';
+        const password = 'takemetocloud';
+        request(app)
+        .post('/users')
+        .send({email, password})
+        .expect(200)
+        .expect((res) =>{
+            expect(res.headers['x-auth']).toBeTruthy();  //replacement to toExist()
+            expect(res.body._id).toBeTruthy(); 
+            expect(res.body.email).toBe(email);   
+        })
+        .end((err) => {
+
+            if (err){
+                return done(err);
+            }
+            User.findOne({email}).then((user) => {
+                expect(user).toBeTruthy();
+                expect(user.password).not.toBe(password);
+                done();
+            }).catch((err) => done(err));
+         });
+    });
+
+    it('should not create same user', (done) => {
+        const email = 'heaven@gmail.com';
+        const password = 'takemetocloud';
+        request(app)
+            .post('/users')
+            .send({
+                email: users[0].email, 
+                password: password})
+            .expect(400)
+            .end(done);
+    } );
+
+});
+
+describe('POST users/login', () => {
+    it('should login user and return auth token', (done) => {
+        request(app)
+        .post('/users/login')
+        .send({
+            email: users[1].email,
+            password: users[1].password})
+        .expect(200)
+        .expect((res) => {
+            expect(res.headers['x-auth']).toBeTruthy()
+        })
+         .end((err, res) => {
+            if(err) {
+                return done(err);
+            } 
+            User.findById(users[1]._id).then((user) => {
+                expect(user.tokens[1].access).toBe('auth');
+                expect(user.tokens[1].token).toBe(res.headers['x-auth']);
+                done(); 
+            }).catch((e) => done(e));    
+        
+         });
+    });
+    it('should reject (400) invalid login', (done) => {
+        request(app)
+        .post('/users/login')
+        .send({
+            email: 'Rakesh Rudra',
+            password: 'Helloworld!'
+        })
+        .expect(400)
+        .expect((res) =>{
+            expect(res.headers['x-auth']).toBeFalsy();
+        })
+  /*       .end(done); */
+        .end((err, res) => {
+            if(err) {
+                return done(err);
+            }
+            done(); 
+         });
+    });
+});
+
+describe('DELETE /users/me/token', () => {
+    it('should remove auth token on logout', (done) => {
+        
+        request(app)
+        .delete('/users/me/token')
+        .set('x-auth', users[1].tokens[0].token)
+        .expect(200)
+        .end((err, res) => {
+            if(err) {
+                return done(err);
+            }
+            User.findById(users[1]._id).then((user) => {
+                expect(user.tokens).toEqual(expect.arrayContaining([]));
+                done();
+            }).catch((e) => done(e));
+        })
+
+    });
+
+    it('should not remove invalidauth token on logout', (done) => {
+
+        request(app)
+            .delete('/users/me/token')
+            .set('x-auth', users[1].tokens[0].token + ' ')
+            .expect(401)
+            .end((err, res) => {
+                if (err) {
+                    return done(err);
+                }
+                User.findById(users[1]._id).then((user) => {
+                    expect(user.tokens).toEqual(expect.arrayContaining([]));
+                    done();
+                }).catch((e) => done(e));
+            })
+
+    });
+
+});

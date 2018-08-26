@@ -6,10 +6,11 @@ const {ObjectId} = require('mongodb');
 const {mongoose} = require('./db/mongoose');
 const _ = require('lodash');
 
-var {Todo} = require('./models/todo');
-var {User} = require('./models/user');
+const {Todo} = require('./models/todo');
+const {User} = require('./models/user');
+const {authenticate} = require('./middleware/authenticate');
 
-var app = express();
+let app = express();
 const port = process.env.PORT ; 
 
 app.use(bodyParser.json());
@@ -109,74 +110,52 @@ app.listen(port, () => {
     
 });
 
-module.exports = {app} ;
-    
+//==============================================================
+//POST /users
+app.post('/users', (req, res) => {
+    let body = _.pick(req.body, ['email', 'password']);
+    let user = new User(body); //body is an object that can directly get into database
 
-//------------------Old code ----------------------
-
-/* var mongoose = require('mongoose') ;
-
-mongoose.Promise = global.Promise;
-mongoose.connect('mongodb://localhost:27017/TodoApp'); */
-
-/* var Todo = mongoose.model('Todo', {
-    text: {
-        type : String,
-        required : true,
-        minlength: 1,
-        trim: true
-    },
-    completed: {
-        type: Boolean,
-        default: false
-
-    },
-    completedAt: {
-        type: Number,
-        default: null
-    }
+    user.save().then(() => {
+        return user.generateAuthToken();
+        //res.send(user);
+    }).then((token) => {
+        res.header('x-auth', token).send(user);
+    }).catch((e) => {
+        res.status(400).send(); 
+    });  
 });
 
-var newTodo = new Todo({
-    text: 'New todo Collection'
+//Private route to authenticate user by token
+app.get('/users/me', authenticate, (req, res) =>{
+    res.send(req.user);
 });
 
-newTodo.save().then((doc) => {
-    console.log('Saved todo', doc);
-}, (e) => {
-    console.log('Unable to save todo',e);
+
+//Validate a user login, send token after authenticated
+//POST /users/login {email, password}
+
+app.post('/users/login', (req, res) => {
+
+    const body = _.pick(req.body,['email', 'password']);
+    User.findByCredentials(body.email, body.password).then((user) => {
+       
+       return user.generateAuthToken().then((token) => {
+           res.header('x-auth', token).send(user) ;
+       }) 
+    }).catch((e) => {
+        res.status(400).send();
+    });
 });
 
-var otherTodo = new Todo({
-    text: true
+//Sign out
+app.delete('/users/me/token', authenticate, (req, res) => {
+ 
+    req.user.removeToken(req.token).then(() => {
+        res.status(200).send();
+    }, () => {
+        res.status(400).send();
+    });
 });
 
-otherTodo.save().then((doc) => {
-    console.log(JSON.stringify(doc, undefined, 2));
-}, (err) =>{
-    console.log('Unable to save ',err);
-});
-
-//User
-//email - require it - trim it - set type - set min length of 1
-
-var User = mongoose.model('User', {
-    user: {
-        type: String,
-        minlength :1,
-        required: true 
-    },
-    email:{
-        type: String,
-        trim: true,
-        minlength :1,
-        required: true
-    }
-});
-
-var user = new User({user: 'Rakesh Rudra', email: 'rudra.rakesh@gmail.com'});
-user.save().then( (doc) => {
-    console.log('User saaved',doc);
-}, (e) => {
-    console.log('Unable to save user',e);
-});  */
+module.exports = { app };
